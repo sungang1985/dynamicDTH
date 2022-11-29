@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" href="/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vite App</title>
+  <link href="/src/assets/widgets.css" rel="stylesheet">
+  <link href="/src/assets/bootstrap.min.css" rel="stylesheet">
+  <link href="/src/assets/pretty.css" rel="stylesheet">
+  <script src="/src/jquery.min.js"></script>
+  <script src="/src/bootstrap.min.js"></script>
+  <script src="/src/bootstrap-select.min.js"></script>
+  <script src="/src/config.js"></script>
+  <script type="text/javascript" src="http://www.supermapol.com/earth/vue-iEarth/static/Cesium/Cesium.js"></script>
+</head>
+
+<body>
+  <!-- <div id="app"></div>
+    <script type="module" src="/src/main.js"></script> -->
+
+  <div id="cesiumContainer"></div>
+  <div id='loadingbar' class="spinner">
+    <div class="spinner-container container1">
+      <div class="circle1"></div>
+      <div class="circle2"></div>
+      <div class="circle3"></div>
+      <div class="circle4"></div>
+    </div>
+    <div class="spinner-container container2">
+      <div class="circle1"></div>
+      <div class="circle2"></div>
+      <div class="circle3"></div>
+      <div class="circle4"></div>
+    </div>
+    <div class="spinner-container container3">
+      <div class="circle1"></div>
+      <div class="circle2"></div>
+      <div class="circle3"></div>
+      <div class="circle4"></div>
+    </div>
+  </div>
+  <blockquote id="bubble" class="bubble">
+    <img id="myimg" src="./src/assets/Images/home_banner.jpg" width="50%" height="auto">
+    <h2 id="title"></h2>
+    <p id="des" class="word"></p>
+    <audio controls="controls">
+      <source src="./src/assets/media/song.mp3" type="audio/mpeg" />
+      Your browser does not support the audio tag.
+    </audio>
+  </blockquote>
+  <div id='toolbar' class="param-container tool-bar">
+    <p>提示：</p>
+    <span>点击房屋面以查看动态单体化效果</span>
+  </div>
+  <script>
+    function onload(Cesium) {
+      var infoboxContainer = document.getElementById("bubble");
+      //初始化viewer部件
+      var viewer = new Cesium.Viewer('cesiumContainer');
+      viewer.imageryLayers.addImageryProvider(new Cesium.BingMapsImageryProvider({
+        url: 'https://dev.virtualearth.net',
+        mapStyle: Cesium.BingMapsStyle.AERIAL,
+        key: URL_CONFIG.BING_MAP_KEY
+      }));
+      viewer.customInfobox = infoboxContainer;
+      var scene = viewer.scene;
+      var canvas = scene.canvas;
+      var widget = viewer.cesiumWidget;
+      $('#loadingbar').remove();
+      try {
+        //添加S3M图层服务
+        var promise = scene.open(URL_CONFIG.SCENE_JINJIANG);
+        Cesium.when(promise, function (layers) {
+          if (!scene.pickPositionSupported) {
+            alert('不支持深度拾取,属性查询功能无法使用！');
+          }
+          var layer = scene.layers.find('jinjiang');
+          //设置属性查询参数
+          layer.setQueryParameter({
+            url: 'http://www.supermapol.com/realspace/services/data-jinjiang/rest/data',
+            dataSourceName: 'jinjiang',
+            dataSetName: 'test',
+            keyWord: 'SmID'
+          });
+          //设置相机视角
+          scene.camera.setView({
+            //将经度、纬度、高度的坐标转换为笛卡尔坐标
+            destination: new Cesium.Cartesian3(-2767302.844416157, 5085941.49155452, 2675759.1559041184),
+            orientation: {
+              heading: 4.7793869967010565,
+              pitch: -0.5899023527373464,
+              roll: 8.539835505416704e-12
+            }
+          });
+
+
+        }, function (e) {
+          if (widget._showRenderLoopErrors) {
+            var title = '渲染时发生错误，已停止渲染。';
+            widget.showErrorPanel(title, undefined, e);
+          }
+        });
+      }
+      catch (e) {
+        if (widget._showRenderLoopErrors) {
+          var title = '渲染时发生错误，已停止渲染。';
+          widget.showErrorPanel(title, undefined, e);
+        }
+      }
+      //添加自定义infobox
+      var title = document.getElementById("title");
+      var des = document.getElementById("des");
+      var myimg = document.getElementById("myimg");
+      //注册鼠标点击事件
+      viewer.pickEvent.addEventListener(function (feature) {
+        console.log("viewer.pickEvent")
+        var title = Cesium.defaultValue(feature.NAME, '');
+        var description = Cesium.defaultValue(feature.DES, '');
+        title.innerText = title;
+        des.innerText = description;
+        myimg.src = "./images/" + title + ".jpg";
+      });
+
+      /*
+      var infoboxContainer = document.getElementById("bubble");
+
+      var viewer = new Cesium.Viewer('cesiumContainer');
+      viewer.customInfobox = infoboxContainer;
+      var scene = viewer.scene;
+      var camera = scene.camera;
+
+
+
+      // 方法一，通过数据服务的形式添加单体化标识面
+      // (推荐使用)
+      var dataServiceUrl = 'http://www.supermapol.com/realspace/services/data-dynamicDTH/rest/data/featureResults.rjson?returnContent=true'; // 数据服务URL
+      var dataSourceName = '铁岭矢量面'; // 数据源名称
+      var dataSetName = 'New_Region3D_1'; // 数据集名称
+      // 加载倾斜摄影图层
+      var promise = scene.addS3MTilesLayerByScp('http://www.supermapol.com/realspace/services/3D-dynamicDTH/rest/realspace/datas/Config%20-%201/config', {
+        name: 'oblique photography'
+      });
+      promise.then(function (obliqueLayers) {
+        camera.setView({ // 先定位，开始渲染定位区域的倾斜
+          destination: new Cesium.Cartesian3(-2623004.4174251584, 3926981.958360567, 4287374.829655093),
+          orientation: {
+            heading: 4.39611370540786,
+            pitch: -0.43458664812464143,
+            roll: 2.0174972803488345e-11
+          }
+        });
+
+        var handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+        handler.setInputAction(function (e) {
+          // 首先移除之前添加标识实体
+          viewer.entities.removeById('identify-area');
+          // 获取点击位置笛卡尔坐标
+          var position = scene.pickPosition(e.position);
+          // 从笛卡尔坐标获取经纬度
+          var cartographic = Cesium.Cartographic.fromCartesian(position);
+          var longitude = Cesium.Math.toDegrees(cartographic.longitude);
+          var latitude = Cesium.Math.toDegrees(cartographic.latitude);
+
+          var queryPoint = { // 查询点对象
+            x: longitude,
+            y: latitude
+          };
+
+          queryByPoint(queryPoint);
+
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        // 去除加载动画
+        $('#toolbar').show();
+        $('#loadingbar').remove();
+      });
+
+      var title = document.getElementById("title");
+      var des = document.getElementById("des");
+      var myimg = document.getElementById("myimg");
+      //注册鼠标点击事件
+      viewer.pickEvent.addEventListener(function (feature) {
+        console.log("pickEvent");
+        var title = Cesium.defaultValue(feature.NAME, '');
+        var description = Cesium.defaultValue(feature.DES, '');
+        title.innerText = title;
+        des.innerText = description;
+        myimg.src = "./images/" + title + ".jpg";
+      });
+
+      // 通过点击查询用于表示单体化的面要素，添加到场景中高亮显示。
+      function queryByPoint(queryPoint) {
+        var queryObj = {
+          "getFeatureMode": "SPATIAL",
+          "spatialQueryMode": "INTERSECT",
+          "datasetNames": [dataSourceName + ":" + dataSetName],
+          "geometry": {
+            id: 0,
+            parts: [1],
+            points: [queryPoint],
+            type: "POINT"
+          }
+        };
+
+        queryObjJSON = JSON.stringify(queryObj); // 转化为JSON字符串作为查询参数
+
+        $.ajax({
+          type: "post",
+          url: dataServiceUrl,
+          data: queryObjJSON,
+          success: function (result) {
+            var resultObj = JSON.parse(result);
+            if (resultObj.featureCount > 0) {
+              addClapFeature(resultObj.features[0]);
+            }
+          },
+          error: function (msg) {
+            console.log(msg);
+          }
+        })
+      }
+
+      // 将数据服务查询到的要素添加到场景中高亮显示，表示选中效果。
+      function addClapFeature(feature) {
+        var lonLatArr = getLonLatArray(feature.geometry.points);
+        viewer.entities.add({
+          id: 'identify-area',
+          name: '单体化标识面',
+          polygon: {
+            hierarchy: Cesium.Cartesian3.fromDegreesArray(lonLatArr),
+            material: new Cesium.Color(1.0, 0.0, 0.0, 0.3),
+            classificationType: Cesium.ClassificationType.S3M_TILE // 贴在S3M模型表面
+          },
+        });
+      }
+
+      // 得到[经度,纬度,经度,纬度...]形式的数组，用于构造面。
+      function getLonLatArray(points) {
+        var point3D = [];
+        points.forEach(function (point) {
+          point3D.push(point.x);
+          point3D.push(point.y);
+        });
+        return point3D;
+      }
+      */
+      /*
+       // 方法二：以图层的方式加载
+       // 加载倾斜摄影数据
+       var promise2 = scene.addS3MTilesLayerByScp('http://www.supermapol.com/realspace/services/3D-dynamicDTH/rest/realspace/datas/Config%20-%201/config',{name : 'oblique photography'});
+       Cesium.when.all([promise2], function(obliqueLayers){ // 等倾斜摄影数据加载完了再去加载矢量面，否则矢量面找不到目标去贴对象
+       camera.setView({ // 先定位，开始渲染定位区域的倾斜
+       destination : new Cesium.Cartesian3(-2623004.4174251584, 3926981.958360567, 4287374.829655093),
+       orientation : {
+       heading: 4.39611370540786,
+       pitch : -0.43458664812464143,
+       roll : 2.0174972803488345e-11
+       }
+       });
+       // 加载矢量面数据
+       var promise1 = scene.addS3MTilesLayerByScp('http://www.supermapol.com/realspace/services/3D-dynamicDTH/rest/realspace/datas/New_Region3D_1_%E9%93%81%E5%B2%AD%E7%9F%A2%E9%87%8F%E9%9D%A2/config', {
+       name:'vector area'
+       });
+       Cesium.when.all([promise1], function(vectorLayers){
+       var vectorLayer = scene.layers.find('vector area'); // 矢量图层
+       vectorLayer.style3D._fillForeColor.alpha = 0; // 矢量图层填充前景色透明
+       vectorLayer.selectedColor = new Cesium.Color(1.0, 0.0, 0.0, 0.5); // 选中时给一个可见颜色
+       vectorLayer.selectColorType = 1; // 选中颜色的显示类型为替换色
+       vectorLayer.selectEnabled = true; // 矢量图层可选
+       });
+       // 去除加载动画
+       $('#toolbar').show();
+       $('#loadingbar').remove();
+       });
+       */
+
+      /*
+       // 方法三，以场景的方式加载
+       var promises = scene.open('http://www.supermapol.com/realspace/services/3D-dynamicDTH/rest/realspace');
+       Cesium.when.all(promises, function(layers){
+       camera.setView({ // 先定位，开始渲染定位区域的倾斜
+       destination : new Cesium.Cartesian3(-2623004.4174251584, 3926981.958360567, 4287374.829655093),
+       orientation : {
+       heading: 4.39611370540786,
+       pitch : -0.43458664812464143,
+       roll : 2.0174972803488345e-11
+       }
+       });
+       var vectorLayer = scene.layers.find('New_Region3D_1_铁岭矢量面'); // 矢量图层，图层的名字为服务数据中SCP的文件名
+       vectorLayer.style3D._fillForeColor.alpha = 0; // 矢量图层填充前景色透明
+       vectorLayer.selectedColor = new Cesium.Color(1.0, 0.0, 0.0, 0.5); // 选中时给一个可见颜色
+       vectorLayer.selectColorType = 1; // 选中颜色的显示类型为替换色
+       vectorLayer.selectEnabled = true; // 矢量图层可选
+       // 去除加载动画
+       $('#toolbar').show();
+       $('#loadingbar').remove();
+       });
+       */
+    }
+    if (typeof Cesium !== 'undefined') {
+      window.startupCalled = true;
+      onload(Cesium);
+    }
+  </script>
+
+
+</body>
+
+</html>
